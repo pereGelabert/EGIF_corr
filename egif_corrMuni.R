@@ -150,11 +150,7 @@ for(i in unique(Prov_shp$ID_EGIF)[1:48]){
   
 }
 
-PIF1_ok <- bind_rows(list_prov)%>%
-  st_as_sf(coords=c("lon","lat")) %>% 
-  st_set_crs(4326)%>% 
-  mutate(lat=st_coordinates(.)[,1],
-         lon=st_coordinates(.)[,2])
+PIF1_ok <- bind_rows(list_prov)
 
 
 # Auxilitmap# Auxiliary information
@@ -228,6 +224,10 @@ PIF_def <- PIF1_ok %>% select(-IDENTIDADMENOR) %>%
          TOTALAR,
          TOTALNAR,
          TOTAL_SUP,
-         Intersects)
+         Intersects)%>% 
+  st_set_crs(4326)%>% 
+  mutate(lat=st_coordinates(.)[,1],
+         lon=st_coordinates(.)[,2])
 
 st_write(PIF_def, "./EGIF_spBBDD.gpkg")
+
