@@ -1,7 +1,7 @@
 library(sf)
 library(tidyverse)
 
-setwd("Z:/EGIF/")  # Set the working directory
+setwd("C:/Users/pjgel/OneDrive - Generalitat de Catalunya/EGIF")  # Set the working directory
 
 ## Reading municipality table
 Muni <- readxl::read_xlsx("./AUX_TABLES/MUNICIPIOS.xlsx") %>%
@@ -100,14 +100,19 @@ for(i in unique(Prov_shp$ID_EGIF)[1:48]){
                        NOMBRE,X,Y),
               by=c("IDMUNICIPIO","IDPROVINCIA")) %>% 
     rename(X_Muni=X,
-           Y_Muni=Y)
+           Y_Muni=Y,
+           X=X_or,
+           Y=Y_or)
   
   
-  pt_sel_ok <- pt_sel %>% filter(Intersects==T)
+  pt_sel_ok <- pt_sel %>% filter(Intersects==T)%>% 
+    select(-HUSO) %>% 
+    rename(HUSO=HUSO_rev) %>% 
+    st_drop_geometry()
+  colnames(pt_sel_ok)
   
   if(nrow(pt_sel %>% 
           filter(Intersects==F)%>%
-          filter(Intersects==F) %>% 
           drop_na(dist_XY_Muni))==0){
     message(paste0("N. of incorrect points:",0))
     list_prov[[length(list_prov)+1]] <- bind_rows(pt_sel_ok) %>% 
@@ -127,7 +132,12 @@ for(i in unique(Prov_shp$ID_EGIF)[1:48]){
              Y_Muni=st_coordinates(.)[,2]) %>% 
       st_transform(4326) %>% 
       mutate(lon=st_coordinates(.)[,1],
-             lat=st_coordinates(.)[,2])
+             lat=st_coordinates(.)[,2],
+             X=X_Muni,
+             Y=Y_Muni,
+             HUSO=30) %>% 
+      select(-HUSO_rev) %>% 
+      st_drop_geometry()
     
     list_prov[[length(list_prov)+1]] <- bind_rows(pt_sel_no,
                                                   pt_sel_ok) %>% 
@@ -140,9 +150,14 @@ for(i in unique(Prov_shp$ID_EGIF)[1:48]){
   
 }
 
-PIF1_ok <- bind_rows(list_prov)
+PIF1_ok <- bind_rows(list_prov)%>%
+  st_as_sf(coords=c("lon","lat")) %>% 
+  st_set_crs(4326)%>% 
+  mutate(lat=st_coordinates(.)[,1],
+         lon=st_coordinates(.)[,2])
 
-# Auxiliary information
+
+# Auxilitmap# Auxiliary information
 
 # PIF2 temporal information
 PIF2 <- read_csv2("./AUX_TABLES/PIF2.csv") %>% 
@@ -179,7 +194,7 @@ grcausas <- readxl::read_xlsx("./AUX_TABLES/GRUPOCAUSAS.xlsx") %>% filter(IDIDIO
 clase_dia <- readxl::read_xlsx("./AUX_TABLES/CLASEDIA.xlsx") %>% filter(IDIDIOMA==0) %>% select(-IDIDIOMA) %>% 
   rename(CLASEDIADESC=2)
 
-PIF_def <- PIF1_ok %>% select(-IDENTIDADMENOR, -HUSO) %>%
+PIF_def <- PIF1_ok %>% select(-IDENTIDADMENOR) %>%
   left_join(PIF2, by="IDPIF") %>% 
   left_join(PIF4, by="IDPIF") %>% 
   left_join(PIF9, by="IDPIF") %>% 
@@ -191,14 +206,9 @@ PIF_def <- PIF1_ok %>% select(-IDENTIDADMENOR, -HUSO) %>%
          IDPROV=IDPROVINCIA,
          IDMUNI=IDMUNICIPIO,
          NAMEMUNI=NOMBRE,
-         HUSO=HUSO_rev,
          X_MUNI=X_Muni,
          Y_MUNI=Y_Muni) %>% 
-  mutate(X_or= ifelse(Intersects==F,NA,X_or),  # Original X coordinate, NA if outside province
-         Y_or= ifelse(Intersects==F,NA,Y_or),  # Original Y coordinate, NA if outside province
-         HUSO= ifelse(Intersects==F,NA,HUSO),  # HUSO, NA if outside province
-         HUSO_MUNI=30,  # Municipality's HUSO
-         AÑO=year(DETECCION)) %>%  # Year of detection
+  mutate(AÑO=year(DETECCION)) %>%  # Year of detection
   select(IDPIF,DETECCION,EXTINCION,
          AÑO,IDCCAA,
          NAMECCAA,IDPROV,NAMEPROV,
@@ -206,9 +216,8 @@ PIF_def <- PIF1_ok %>% select(-IDENTIDADMENOR, -HUSO) %>%
          NAMEMUNI,
          X_MUNI,
          Y_MUNI,
-         HUSO_MUNI,
-         X_or,
-         Y_or,
+         X,
+         Y,
          HUSO,
          lon,
          lat,
@@ -219,7 +228,6 @@ PIF_def <- PIF1_ok %>% select(-IDENTIDADMENOR, -HUSO) %>%
          TOTALAR,
          TOTALNAR,
          TOTAL_SUP,
-         Intersects,
-         geometry)
+         Intersects)
 
 st_write(PIF_def, "./EGIF_spBBDD.gpkg")
